@@ -327,7 +327,7 @@ export function getUI(): () => UIObject {
         }
       };
     }
-    case "hongxiuzhao.me": {
+    case "hongxiuzhao.net": {
       return () => {
         if (document.querySelector(".cover")) {
           return defaultObject;
