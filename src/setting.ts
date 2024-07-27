@@ -1,6 +1,6 @@
 import { _GM_deleteValue, _GM_getValue, _GM_setValue } from "./lib/GM";
 
-export const retryLimit = 5;
+export const retryLimit = 500;
 export const enableDebug = {
   value: false,
 };

@@ -39,7 +39,7 @@ export interface ChapterParseObject {
 export abstract class BaseRuleClass {
   public attachmentMode: "naive" | "TM" = "TM";
   public charset: string = document.characterSet;
-  public concurrencyLimit = 10;
+  public concurrencyLimit = 1000;
   public streamZip = false;
   public needLogin = false;
   public nsfw = false;
