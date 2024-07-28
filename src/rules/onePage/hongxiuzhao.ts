@@ -1,9 +1,9 @@
 import { mkRuleClass } from "./template";
 import { rm } from "../../lib/dom";
 import { table } from "../lib/hongxiuzhao";
-import { getHtmlDOM } from "../../lib/http";
-import { sleep } from "../../lib/misc";
+import { getHtmlDomWithRetry, } from "../../lib/http";
 import { log } from "../../log";
+import { concurrencyRun } from "../../lib/misc";
 
 export const hongxiuzhao = () => {
   const getChapterId = (url: string) => {
@@ -15,17 +15,16 @@ export const hongxiuzhao = () => {
 
   const getNextPage = async (chapterId: string, nextPage: number): Promise<number> => {
     const contentPageUrl = `${document.location.origin}/${chapterId}_${nextPage}.html`;
-    const doc = await getHtmlDOM(contentPageUrl, document.characterSet);
+    const doc = await getHtmlDomWithRetry(contentPageUrl, document.characterSet) as Document;
 
     const a = doc.querySelector(
       ".pager > a:nth-last-child(1)"
     ) as HTMLAnchorElement;
-    const reg = new RegExp(chapterId + '_' + '(\\d)');
+    const reg = new RegExp(chapterId + '_' + '(\\d+)');
     const theNextPage = reg.exec(a.href)?.[1];
     if (!theNextPage) {
       return nextPage - 1;
     }
-    await sleep(5000);
     const lastPage = await getNextPage(chapterId, Number(theNextPage));
     return lastPage;
   }
@@ -57,52 +56,66 @@ export const hongxiuzhao = () => {
     getAList: async () => {
       const chapterUrls = Array.from(document.querySelectorAll(".m-chapters li > a") as unknown as HTMLAnchorElement[]);
       const obj: any = {};
-      chapterUrls.forEach(it => {
+      chapterUrls.forEach((it) => {
         const chapterId = getChapterId(it.href);
-        obj[chapterId] = it.innerText;
+        obj[chapterId] = {
+          title: it.innerText,
+        };
       })
 
       const allUrls: string[] = []
-      for (let i = 0; i < chapterUrls.length; i++) {
-        const chapterUrl = chapterUrls[i].href;
-        allUrls.push(chapterUrl);
 
-        const doc = await getHtmlDOM(chapterUrl, document.characterSet);
-        const chapterId = getChapterId(chapterUrl);
-        const a = doc.querySelector(
-          ".pager > a:nth-last-child(1)"
-        ) as HTMLAnchorElement;
-        log.info('[ChapterParse]章节下一页链接：' + (a ? a.href : 'none'));
-        const reg = new RegExp(chapterId + '_' + '(\\d)');
-        const nextPage = reg.exec(a.href)?.[1];
-        await sleep(5000);
+      await concurrencyRun(chapterUrls, 10, async (it) => {
+        if (!it) { return; }
 
-        if (!nextPage) {
-          log.info('[ChapterParse]这章没有多页！');
-          continue;
-        }
+        const chapterUrl = it.href;
 
-        log.info('[ChapterParse]这章有多页！');
+        return getHtmlDomWithRetry(chapterUrl, document.characterSet).then(async doc => {
+          if (!doc) {
+            return;
+          }
+          const chapterId = getChapterId(chapterUrl);
+          const a = doc.querySelector(
+            ".pager > a:nth-last-child(1)"
+          ) as HTMLAnchorElement;
+          log.info(`[ChapterParse]章节${obj[chapterId].title}下一页链接：` + (a ? a.href : 'none'));
+          const reg = new RegExp(chapterId + '_' + '(\\d+)');
+          const nextPage = reg.exec(a.href)?.[1];
 
-        const maxNumber = await getNextPage(chapterId, Number(nextPage));
+          if (!nextPage) {
+            log.info(`[ChapterParse]章节${obj[chapterId].title}没有多页！`);
+            return;
+          }
 
-        for (let j = 2; j <= maxNumber; j++) {
+          log.info(`[ChapterParse]章节${obj[chapterId].title}有多页！`);
+
+          const maxNumber = await getNextPage(chapterId, Number(nextPage));
+          obj[chapterId].maxNumber = maxNumber;
+        });
+      });
+
+      chapterUrls.forEach((it) => {
+        const chapterId = getChapterId(it.href);
+        const chapterItem = obj[chapterId];
+
+        allUrls.push(it.href);
+
+        for (let j = 2; j <= chapterItem.maxNumber; j++) {
           const url = `${document.location.origin}/${chapterId}_${j}.html`;
           allUrls.push(url);
         }
-      }
+      })
 
       log.info("[ChapterParse]所有章节链接：\n" + JSON.stringify(allUrls));
 
-
       return allUrls.map(it => {
         const chapterId = getChapterId(it).split('_')[0];
-        const reg = new RegExp(chapterId + '_' + '(\\d)');
+        const reg = new RegExp(chapterId + '_' + '(\\d+)');
         const theNextPage = reg.exec(it)?.[1];
 
         return {
           href: it,
-          innerText: obj[chapterId] + (theNextPage ? ('-' + theNextPage) : '')
+          innerText: obj[chapterId].title + (theNextPage ? ('-' + theNextPage) : '')
         }
       }) as unknown as NodeListOf<Element>
     },
