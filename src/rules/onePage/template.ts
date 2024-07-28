@@ -19,7 +19,8 @@ interface MkRuleClassOptions {
   additionalMetadatePatch?: (
     additionalMetadate: BookAdditionalMetadate
   ) => BookAdditionalMetadate;
-  aList: NodeListOf<Element> | Element[];
+  aList?: NodeListOf<Element> | Element[];
+  getAList?: () => NodeListOf<Element> | Promise<NodeListOf<Element>>;
   getAName?: (aElem: Element) => string;
   getIsVIP?: (aElem: Element) => {
     isVIP: boolean;
@@ -52,6 +53,7 @@ export function mkRuleClass({
   coverUrl,
   additionalMetadatePatch,
   aList,
+  getAList,
   getAName,
   getIsVIP,
   sections,
@@ -125,7 +127,11 @@ export function mkRuleClass({
       ) {
         hasSection = true;
       }
-      for (const aElem of Array.from(aList) as HTMLAnchorElement[]) {
+      let newAlist = aList;
+      if (typeof getAList === 'function') {
+        newAlist = await getAList();
+      }
+      for (const aElem of Array.from(newAlist!) as HTMLAnchorElement[]) {
         let chapterName;
         if (getAName) {
           chapterName = getAName(aElem);

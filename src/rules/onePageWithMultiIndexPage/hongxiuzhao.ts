@@ -31,6 +31,7 @@ export const hongxiuzhao = () => {
   }
 
   return mkRuleClass({
+    concurrencyLimit: 3,
     bookUrl: document.location.href,
     bookname:
       document
@@ -48,23 +49,11 @@ export const hongxiuzhao = () => {
       return dom;
     },
     coverUrl: document.querySelector<HTMLImageElement>(".cover > img")?.src,
-    additionalMetadatePatch: (additionalMetadate) => {
-      additionalMetadate.tags = Array.from(
-        document.querySelectorAll<HTMLAnchorElement>(".tags > a")
-      ).map((a) => a.innerText.trim());
-      return additionalMetadate;
-    },
-    getAList: async () => {
-      const chapterUrls = Array.from(document.querySelectorAll(".m-chapters li > a") as unknown as HTMLAnchorElement[]);
-      const obj: any = {};
-      chapterUrls.forEach(it => {
-        const chapterId = getChapterId(it.href);
-        obj[chapterId] = it.innerText;
-      })
-
+    getIndexUrls: async () => {
+      const chapterUrls = Array.from(document.querySelectorAll(".m-chapters li > a") as unknown as HTMLAnchorElement[]).map(it => it.href)
       const allUrls: string[] = []
       for (let i = 0; i < chapterUrls.length; i++) {
-        const chapterUrl = chapterUrls[i].href;
+        const chapterUrl = chapterUrls[i];
         allUrls.push(chapterUrl);
 
         const doc = await getHtmlDOM(chapterUrl, document.characterSet);
@@ -93,19 +82,15 @@ export const hongxiuzhao = () => {
       }
 
       log.info("[ChapterParse]所有章节链接：\n" + JSON.stringify(allUrls));
-
-
-      return allUrls.map(it => {
-        const chapterId = getChapterId(it).split('_')[0];
-        const reg = new RegExp(chapterId + '_' + '(\\d)');
-        const theNextPage = reg.exec(it)?.[1];
-
-        return {
-          href: it,
-          innerText: obj[chapterId] + (theNextPage ? ('-' + theNextPage) : '')
-        }
-      }) as unknown as NodeListOf<Element>
+      return allUrls;
     },
+    additionalMetadatePatch: (additionalMetadate) => {
+      additionalMetadate.tags = Array.from(
+        document.querySelectorAll<HTMLAnchorElement>(".tags > a")
+      ).map((a) => a.innerText.trim());
+      return additionalMetadate;
+    },
+    getAList: (doc) => doc.querySelectorAll(".m-chapters li > a"),
     getContent: (doc) => doc.querySelector(".article-content"),
     contentPatch: (content) => {
       rm("mark", true, content);

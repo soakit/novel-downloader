@@ -15,7 +15,10 @@ interface MkRuleClassOptions {
   author: string;
   introDom?: HTMLElement;
   introDomPatch?: (introDom: HTMLElement) => HTMLElement;
-  coverUrl: string | null;
+  coverUrl?: string | null;
+  additionalMetadatePatch?: (
+    additionalMetadate: BookAdditionalMetadate
+  ) => BookAdditionalMetadate;
   getIndexUrls?: () => string[] | Promise<string[]>;
   getIndexPages?: () => Promise<(Document | null)[]>;
   getAList: (doc: Document) => NodeListOf<Element>;
@@ -49,6 +52,7 @@ export function mkRuleClass({
   introDom,
   introDomPatch,
   coverUrl,
+  additionalMetadatePatch,
   getIndexUrls,
   getIndexPages,
   getAList,
@@ -96,6 +100,7 @@ export function mkRuleClass({
           introDomPatch
         );
       }
+
       const additionalMetadate: BookAdditionalMetadate = {
         language: language ?? "zh",
       };
@@ -105,6 +110,12 @@ export function mkRuleClass({
             additionalMetadate.cover = coverClass;
           })
           .catch((error) => log.error(error));
+      }
+      if (additionalMetadatePatch) {
+        Object.assign(
+          additionalMetadate,
+          additionalMetadatePatch(additionalMetadate)
+        );
       }
 
       let indexPages: (Document | null)[];
@@ -117,6 +128,9 @@ export function mkRuleClass({
           indexUrls,
           this.concurrencyLimit,
           async (url: string) => {
+            if (!url) {
+              return;
+            }
             log.info(`[BookParse]抓取目录页：${url}`);
             const doc = await getHtmlDomWithRetry(url, this.charset);
             _indexPage.push([doc, url]);
@@ -171,7 +185,7 @@ export function mkRuleClass({
               sectionChapterNumber = 0;
             }
           }
-
+          
           chapterNumber++;
           sectionChapterNumber++;
           let isVIP = false;
