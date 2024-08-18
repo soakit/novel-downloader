@@ -23,7 +23,7 @@ export const hongxiuzhao = () => {
     const reg = new RegExp(chapterId + '_' + '(\\d+)');
     const theNextPage = reg.exec(a.href)?.[1];
     if (!theNextPage) {
-      return nextPage - 1;
+      return nextPage;
     }
     const lastPage = await getNextPage(chapterId, Number(theNextPage));
     return lastPage;
